@@ -167,7 +167,7 @@ def goldfeld_quandt():
     for i in range(200):
         rss_down += (y_down[i] - np.dot(X_down, theta_est_down)[i])**2
 
-    f_stat = f.ppf(0.95, 191, 191)
+    f_stat = f.ppf(0.95, 248, 248)
     print('RSS UP = ', rss_up)
     print('RSS DOWN = ', rss_down)
     print('квантиль F = ', f_stat)

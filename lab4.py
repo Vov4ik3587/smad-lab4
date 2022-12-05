@@ -1,11 +1,11 @@
 import numpy as np
-from scipy.stats import chi2
+from scipy.stats import chi2, f
 
 
 class Model:  # Модель из предыдущих лабораторных работ
 
     def __init__(self):
-        self.amount_tests = 500
+        self.amount_tests = 900
         self.x_max = 1
         self.x_min = -1
         self.x1 = []
@@ -123,4 +123,51 @@ else:
     print('Гипотеза об отсутствии гетероскедастичности возмущений не отвергается')
 
 # %% Проверка данных на гетероскедастичность. Тест Голдфельда-Квандтона
+new_amount_tests = int(model.amount_tests / 3)
 
+matrix_X = np.vstack([model.x1, model.x2, model.variance])
+matrix_X_sort = matrix_X[matrix_X[:, 2].argsort()[::-1]]  # Сортируем по убыванию взвешенной суммы квадратов факторов
+
+# Раделяем массив на 2 выборки
+new_model_start = Model()
+new_model_end = Model()
+
+new_model_start.amount_tests, new_model_end.amount_tests = new_amount_tests, new_amount_tests
+new_model_start.x1, new_model_start.x2 = matrix_X_sort[0][:new_amount_tests], matrix_X_sort[1][:new_amount_tests]
+new_model_end.x1, new_model_end.x2 = matrix_X_sort[0][new_amount_tests * 2:], matrix_X_sort[1][new_amount_tests * 2:]
+
+new_model_start.signal = Calculator.compute_signal(new_model_start)
+new_model_end.signal = Calculator.compute_signal(new_model_end)
+
+new_model_start.response = new_model_start.signal + matrix_X_sort[2][:new_amount_tests]
+new_model_end.response = new_model_end.signal + matrix_X_sort[2][new_amount_tests * 2:]
+
+# Оценим обе выборки по МНК
+new_model_start.experiment_matrix = Calculator.compute_experiment_matrix(new_model_start)
+new_model_end.experiment_matrix = Calculator.compute_experiment_matrix(new_model_end)
+
+new_model_start.theta_mnk = Calculator.mnk(new_model_start)
+new_model_end.theta_mnk = Calculator.mnk(new_model_end)
+
+# Вычислим RSS для каждой выборки
+RSS_start, RSS_end = 0, 0
+
+for i in range(new_amount_tests):
+    RSS_start += (new_model_start.response[i] -
+                  np.matmul(new_model_start.experiment_matrix, new_model_start.theta_mnk)[i]) ** 2
+    RSS_end += (new_model_end.response[i] - np.matmul(new_model_end.experiment_matrix, new_model_end.theta_mnk)[i]) ** 2
+
+f_stat = f.ppf(0.95, 248, 248)
+
+if RSS_end / RSS_start > f_stat:
+    print('Гипотеза об отсутствии гетероскедастичности возмущений отвергается')
+else:
+    print('гипотеза об отсутствии гетероскедастичности не отвергается')
+
+
+# %% Вычислим ОМНК и сравним с МНК
+
+model.theta_general_mnk = Calculator.general_mnk(model)
+print(f"МНК: {model.theta_mnk}")
+print(f"ОМНК: {model.theta_general_mnk}")
+print(np.square(model.theta_mnk - model.theta_general_mnk))
