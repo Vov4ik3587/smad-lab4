@@ -76,6 +76,7 @@ class Calculator:
         y = data['y'].to_list()
         return x1, x2, y
 
+
 class DataGenerator:
 
     @staticmethod
@@ -107,7 +108,6 @@ model.response = Calculator.compute_response(model, error)
 
 model.experiment_matrix = Calculator.compute_experiment_matrix(model)
 
-
 # %% Проверка данных на гетероскедастичность. Тест Бреуша-Пагана
 
 model.theta_mnk = Calculator.mnk(model)  # Оцениваем тету по МНК
@@ -121,6 +121,9 @@ experiment_matrix_z = np.vstack([vec_z, model.variance]).T  # Матрица н�
 alpha_eval = np.matmul(
     np.matmul(np.linalg.inv(np.matmul(experiment_matrix_z.T, experiment_matrix_z)), experiment_matrix_z.T),
     new_response)  # Оцениваем неизвестные параметры альфа
+
+alpha_eval = np.delete(alpha_eval, 0)  # удаляем первый элемент
+experiment_matrix_z = np.delete(experiment_matrix_z, 0, 1)  # удаляем свободный член матрицы
 
 new_response_hat = np.matmul(alpha_eval, experiment_matrix_z.T)  # c с крышечкой
 avg_new_response = np.mean(new_response)  # среднее арифметическое нового отклика
@@ -171,12 +174,11 @@ if RSS_end / RSS_start > f_stat:
 else:
     print('гипотеза об отсутствии гетероскедастичности возмущений не отвергается')
 
-
 # %% Вычислим ОМНК и сравним с МНК
 
 model.theta_general_mnk = Calculator.general_mnk(model)
 print(f"Тета: {model.theta}")
 print(f"МНК: {model.theta_mnk}")
 print(f"ОМНК: {model.theta_general_mnk}")
-print(f"Эффективность МНК-оценки: {np.sum(np.square(model.theta-model.theta_mnk))}")
-print(f"Эффективность ОМНК-оценки: {np.sum(np.square(model.theta-model.theta_general_mnk))}")
+print(f"Эффективность МНК-оценки: {np.sum(np.square(model.theta - model.theta_mnk))}")
+print(f"Эффективность ОМНК-оценки: {np.sum(np.square(model.theta - model.theta_general_mnk))}")
