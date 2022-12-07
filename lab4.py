@@ -1,11 +1,12 @@
 import numpy as np
+import pandas as pd
 from scipy.stats import chi2, f
 
 
 class Model:  # Модель из предыдущих лабораторных работ
 
     def __init__(self):
-        self.amount_tests = 900
+        self.amount_tests = 300
         self.x_max = 1
         self.x_min = -1
         self.x1 = []
@@ -13,10 +14,10 @@ class Model:  # Модель из предыдущих лабораторных 
         self.signal = []  # сигнал
         self.response = []  # отклик
         self.variance = []  # дисперсия
-        self.theta = np.array([1, 4, 0.001, 4])  # параметры модели
+        self.theta = np.array([1, 4, 0.001, 0.001, 4])  # параметры модели
         self.theta_mnk = []  # Оценка теты по МНК
         self.theta_general_mnk = []  # Оценка теты по обобщенному МНК
-        self.func = lambda x1, x2: 1 + 4 * x1 + 0.001 * x1 ** 2 + 4 * x2 ** 2
+        self.func = lambda x1, x2: 1 + 4 * x1 + 0.001 * x2 + 0.001 * x1 ** 2 + 4 * x2 ** 2
         self.experiment_matrix = []
 
 
@@ -58,12 +59,22 @@ class Calculator:
         experiment_matrix = np.array([
             np.array([1 for _ in range(model.amount_tests)]),
             model.x1,
+            model.x2,
             np.array([x1 ** 2 for x1 in model.x1]),
             np.array([x2 ** 2 for x2 in model.x2])
         ], dtype=object)
         experiment_matrix = np.array([list(i) for i in zip(*experiment_matrix)])
         return experiment_matrix
 
+    @staticmethod
+    def sort(model):
+        data = pd.DataFrame({'x1': model.x1, 'x2': model.x2, 'y': model.response})
+        data = data.sort_values(by='x1', key=lambda x: x ** 2)
+
+        x1 = data['x1'].to_list()
+        x2 = data['x2'].to_list()
+        y = data['y'].to_list()
+        return x1, x2, y
 
 class DataGenerator:
 
@@ -96,7 +107,6 @@ model.response = Calculator.compute_response(model, error)
 
 model.experiment_matrix = Calculator.compute_experiment_matrix(model)
 
-# model.theta_general_mnk = Calculator.general_mnk(model)
 
 # %% Проверка данных на гетероскедастичность. Тест Бреуша-Пагана
 
@@ -125,22 +135,19 @@ else:
 # %% Проверка данных на гетероскедастичность. Тест Голдфельда-Квандтона
 new_amount_tests = int(model.amount_tests / 3)
 
-matrix_X = np.vstack([model.x1, model.x2, model.variance])
-matrix_X_sort = matrix_X[matrix_X[:, 2].argsort()[::-1]]  # Сортируем по убыванию взвешенной суммы квадратов факторов
+sort_factor_1, sort_factor_2, sort_response = Calculator.sort(model)
 
 # Раделяем массив на 2 выборки
 new_model_start = Model()
 new_model_end = Model()
 
 new_model_start.amount_tests, new_model_end.amount_tests = new_amount_tests, new_amount_tests
-new_model_start.x1, new_model_start.x2 = matrix_X_sort[0][:new_amount_tests], matrix_X_sort[1][:new_amount_tests]
-new_model_end.x1, new_model_end.x2 = matrix_X_sort[0][new_amount_tests * 2:], matrix_X_sort[1][new_amount_tests * 2:]
 
-new_model_start.signal = Calculator.compute_signal(new_model_start)
-new_model_end.signal = Calculator.compute_signal(new_model_end)
+new_model_start.x1, new_model_start.x2 = sort_factor_1[:new_amount_tests], sort_factor_2[:new_amount_tests]
+new_model_end.x1, new_model_end.x2 = sort_factor_1[new_amount_tests * 2:], sort_factor_2[new_amount_tests * 2:]
 
-new_model_start.response = new_model_start.signal + matrix_X_sort[2][:new_amount_tests]
-new_model_end.response = new_model_end.signal + matrix_X_sort[2][new_amount_tests * 2:]
+new_model_start.response = sort_response[:new_amount_tests]
+new_model_end.response = sort_response[new_amount_tests * 2:]
 
 # Оценим обе выборки по МНК
 new_model_start.experiment_matrix = Calculator.compute_experiment_matrix(new_model_start)
@@ -157,17 +164,19 @@ for i in range(new_amount_tests):
                   np.matmul(new_model_start.experiment_matrix, new_model_start.theta_mnk)[i]) ** 2
     RSS_end += (new_model_end.response[i] - np.matmul(new_model_end.experiment_matrix, new_model_end.theta_mnk)[i]) ** 2
 
-f_stat = f.ppf(0.95, 248, 248)
+f_stat = f.ppf(0.95, 95, 95)
 
 if RSS_end / RSS_start > f_stat:
     print('Гипотеза об отсутствии гетероскедастичности возмущений отвергается')
 else:
-    print('гипотеза об отсутствии гетероскедастичности не отвергается')
+    print('гипотеза об отсутствии гетероскедастичности возмущений не отвергается')
 
 
 # %% Вычислим ОМНК и сравним с МНК
 
 model.theta_general_mnk = Calculator.general_mnk(model)
+print(f"Тета: {model.theta}")
 print(f"МНК: {model.theta_mnk}")
 print(f"ОМНК: {model.theta_general_mnk}")
-print(np.square(model.theta_mnk - model.theta_general_mnk))
+print(f"Эффективность МНК-оценки: {np.sum(np.square(model.theta-model.theta_mnk))}")
+print(f"Эффективность ОМНК-оценки: {np.sum(np.square(model.theta-model.theta_general_mnk))}")
